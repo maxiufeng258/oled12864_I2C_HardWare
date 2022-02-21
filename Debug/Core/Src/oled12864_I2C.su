@@ -1,0 +1,10 @@
+oled12864_I2C.c:30:16:oled_Write_CMD	40	static
+oled12864_I2C.c:46:16:oled_Write_Data	40	static
+oled12864_I2C.c:59:13:oled_Filling	24	static
+oled12864_I2C.c:73:6:I2C_Device_Scan	16	static
+oled12864_I2C.c:100:9:oled_Set_Contrast	24	static
+oled12864_I2C.c:114:9:oled_Set_Display_Normal_Inverse	24	static
+oled12864_I2C.c:136:9:oled_Set_Display_ON_OFF	24	static
+oled12864_I2C.c:159:9:oled_Set_Memory_Addr_Mode	24	static
+oled12864_I2C.c:190:9:oled_i2c_Init	16	static
+oled12864_I2C.c:257:9:oled_Update_Screen	16	static
