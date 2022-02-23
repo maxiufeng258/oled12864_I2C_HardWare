@@ -41,6 +41,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c2;
+DMA_HandleTypeDef hdma_i2c2_tx;
 
 UART_HandleTypeDef huart1;
 
@@ -52,6 +53,7 @@ UART_HandleTypeDef huart1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_DMA_Init(void);
 static void MX_I2C2_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -97,27 +99,31 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
+  MX_DMA_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 
-  oled_i2c_Init();
+  uint8_t res = oled_i2c_Init();
+  if (res != 0)
+	  HAL_GPIO_TogglePin(LD1_Red_GPIO_Port, LD1_Red_Pin);
+  printf("%d\r\n", res);
+
+  oled_Fill_Screen_Color(oled_color_White);
 
   HAL_Delay(1000);
-  oled_Set_Contrast(0x7F);
-  oled_Set_Display_Normal_Inverse(display_invers);
-
-  HAL_Delay(1000);
-  oled_Set_Contrast(0xFF);
-  oled_Set_Display_Normal_Inverse(display_normal);
-
-
-  HAL_Delay(1000);
-  oled_Set_Display_ON_OFF(display_off);
-  HAL_Delay(1000);
-  oled_Set_Display_ON_OFF(display_on);
-
-  I2C_Device_Scan();
-
+  oled_Draw_Pixel(1, 1, oled_color_Black);
+  oled_Draw_Pixel(2, 2, oled_color_Black);
+  oled_Draw_Pixel(3, 3, oled_color_Black);
+  oled_Draw_Pixel(4, 4, oled_color_Black);
+  oled_Draw_Pixel(5, 5, oled_color_Black);
+  oled_Draw_Pixel(6, 6, oled_color_Black);
+  oled_Draw_Pixel(7, 7, oled_color_Black);
+  oled_Draw_Pixel(8, 6, oled_color_Black);
+  oled_Draw_Pixel(9, 5, oled_color_Black);
+  oled_Draw_Pixel(10, 4, oled_color_Black);
+  res = oled_Update_Screen();
+  if (res != 0)
+	  HAL_GPIO_TogglePin(LD3_Blue_GPIO_Port, LD3_Blue_Pin);
 
 
   printf("oled 12864 I2C code...\r\n");
@@ -265,6 +271,22 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
 
 }
 

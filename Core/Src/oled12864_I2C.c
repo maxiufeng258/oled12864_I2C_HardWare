@@ -13,8 +13,12 @@ extern I2C_HandleTypeDef oled_i2c;
 #define	oled_timeOut	(10*1000)
 
 
-/* some flag  */
+/* some flag and variables */
 static uint8_t bufferUpdateFlag = 0;	// If this flag is SET, the oled_display_buff has changed.
+
+#if	oled_i2c_dma
+static uint8_t	oled_i2c_dma_mem_write_flag = 0;
+#endif
 /* --- end --- */
 
 
@@ -30,10 +34,27 @@ static uint8_t  oled_display_buff[oled_H_Pix * oled_V_Pix / 8];
 static uint8_t oled_Write_CMD(uint8_t cmd)
 {
 	HAL_StatusTypeDef hal_sta;
-	hal_sta = HAL_I2C_Mem_Write(&oled_i2c, oled_i2c_addr, ctrl_cmd, I2C_MEMADD_SIZE_8BIT, &cmd, sizeof cmd, oled_timeOut);
+#if	oled_i2c_dma
+	hal_sta = HAL_I2C_Mem_Write_DMA(&oled_i2c, oled_i2c_addr, ctrl_cmd, I2C_MEMADD_SIZE_8BIT, &cmd, sizeof cmd);
+
 	if (hal_sta == HAL_OK)
-		return 0;
-	return 1;
+	{
+		uint32_t startTime = HAL_GetTick();
+		while (oled_i2c_dma_mem_write_flag != 1  &&  (HAL_GetTick() - startTime) < oled_timeOut);
+		if ((HAL_GetTick() - startTime) >= oled_timeOut)
+			return 1;
+		oled_i2c_dma_mem_write_flag = 0;
+	}
+	else {
+		return 1;
+	}
+#else
+	hal_sta = HAL_I2C_Mem_Write(&oled_i2c, oled_i2c_addr, ctrl_cmd, I2C_MEMADD_SIZE_8BIT, &cmd, sizeof cmd, oled_timeOut);
+	if (hal_sta != HAL_OK)
+		return 1;
+#endif
+
+	return 0;
 }
 
 
@@ -46,23 +67,40 @@ static uint8_t oled_Write_CMD(uint8_t cmd)
 static uint8_t oled_Write_Data(uint8_t data[], uint16_t len)
 {
 	HAL_StatusTypeDef hal_sta;
-	hal_sta = HAL_I2C_Mem_Write(&oled_i2c, oled_i2c_addr, ctrl_data, I2C_MEMADD_SIZE_8BIT, data, len, oled_timeOut);
+#if	oled_i2c_dma
+	hal_sta = HAL_I2C_Mem_Write_DMA(&oled_i2c, oled_i2c_addr, ctrl_data, I2C_MEMADD_SIZE_8BIT, data, len);
+
 	if (hal_sta == HAL_OK)
-		return 0;
-	return 1;
+	{
+		uint32_t startTime = HAL_GetTick();
+		while (oled_i2c_dma_mem_write_flag != 1  &&  (HAL_GetTick() - startTime) < oled_timeOut);
+		if ((HAL_GetTick() - startTime) >= oled_timeOut)
+			return 1;
+		oled_i2c_dma_mem_write_flag = 0;
+	}
+	else {
+		return 1;
+	}
+#else
+	hal_sta = HAL_I2C_Mem_Write(&oled_i2c, oled_i2c_addr, ctrl_data, I2C_MEMADD_SIZE_8BIT, data, len, oled_timeOut);
+	if (hal_sta != HAL_OK)
+		return 1;
+#endif
+
+	return 0;
 }
 
 
 /**
  * @brief use indicate color(on/off) to filling oled all pixels
  */
-static void oled_Filling(oled_color_t color)
+static void oled_Fill_GDDRAM_Buffer(oled_color_t color)
 {
 	for(uint32_t i = 0; i < sizeof(oled_display_buff); i++)
 	{
-		oled_display_buff[i] = (color == oled_color_Black)? (0x00): (0x0F);
+		oled_display_buff[i] = (color == oled_color_Black)? (0x00): (0xFF);
 	}
-
+	/* set buffer updated flag */
 	bufferUpdateFlag = 1;
 }
 
@@ -100,9 +138,11 @@ void I2C_Device_Scan(void)
 uint8_t oled_Set_Contrast(uint8_t ContrastVal)
 {
 	uint8_t res = 0;
-	res = oled_Write_CMD(oled_cmd_display_contrast_1);			// Set Contrast first cmd Byte
+	// cmd Set Contrast 0x81
+	res = oled_Write_CMD(oled_cmd_display_contrast_1);
 	if (res != 0)
 		return 1;
+	// The segment output current increases as the contrast step value increases
 	oled_Write_CMD(ContrastVal) ? (res = 1) : (res = 0);
 	return res;
 }
@@ -110,6 +150,7 @@ uint8_t oled_Set_Contrast(uint8_t ContrastVal)
 
 /**
  * @brief set oled display following GDDRAM or ignore GDDRAM and Show fixed content(Entire Display ON)
+ * @NOTE If A5h command is issued, then by using A4h command, the display will resume to the GDDRAM contents.
  * @param RAM_Output: [in]	follow	ignore
  * @retval status	0:ok	1:error
  */
@@ -119,9 +160,12 @@ uint8_t oled_Set_Display_Follow_RAM_Or_No(RAM_Output_t RAM_Output)
 
 	switch (RAM_Output) {
 		case RAM_output_follow:
+			//	cmd 0xA4  A4h command enable display outputs according to the GDDRAM contents.
+			//			  A4h command resumes the display from entire display “ON” stage.
 			res = oled_Write_CMD(oled_cmd_display_following);
 			break;
 		case RAM_output_ignore:
+			// cmd 0xA5  A5h command forces the entire display to be “ON”, regardless of the contents of the display data RAM.
 			res = oled_Write_CMD(oled_cmd_display_ignore);
 			break;
 		default:
@@ -134,6 +178,8 @@ uint8_t oled_Set_Display_Follow_RAM_Or_No(RAM_Output_t RAM_Output)
 
 /**
  * @brief oled display normal(on-1,off-0) or inverse(on-0,off-1)
+ * @NOTE In normal display a RAM data of 1 indicates an “ON” pixel
+ * 			while in inverse display a RAM data of 0 indicates an “ON” pixel
  * @param display_Way_t: [in]  display_normal	display_invers
  * @retval status 0:ok	1:error
  */
@@ -142,9 +188,11 @@ uint8_t oled_Set_Display_Normal_Inverse(display_Way_t display_Way)
 	uint8_t res = 0;
 	switch (display_Way) {
 		case display_normal:
+			//	cmd 0xA6  normal display
 			res = oled_Write_CMD(oled_cmd_display_normal);
 			break;
 		case display_invers:
+			//	cmd 0xA7  inverse display
 			res = oled_Write_CMD(oled_cmd_display_inverse);
 			break;
 		default:
@@ -156,6 +204,7 @@ uint8_t oled_Set_Display_Normal_Inverse(display_Way_t display_Way)
 
 /**
  * @brief oled display On / Off(sleep)
+ * @NOTE  These single byte commands are used to turn the OLED panel display ON or OFF.
  * @param display_Switch_t: [in]  display_on	display_off
  * @retval status 0:ok	1:error
  */
@@ -164,9 +213,11 @@ uint8_t oled_Set_Display_ON_OFF(display_Switch_t	display_Switch)
 	uint8_t res = 0;
 	switch (display_Switch) {
 		case display_on:
+			//	cmd	AFh : Display ON
 			res = oled_Write_CMD(oled_cmd_display_on);
 			break;
 		case display_off:
+			//	cmd AEh : Display OFF
 			res = oled_Write_CMD(oled_cmd_display_off);
 			break;
 		default:
@@ -212,9 +263,17 @@ uint8_t oled_Set_Column_Start_Addr_PageMode(uint8_t columnVal)
 /**
  * @brief set memory address mode
  * 		[A1:0] 00b,Horizontal Addressing Mode;
+ * 				|- after the display RAM is read/written, the column address pointer is increased automatically by 1
+ * 				|- column address pointer reaches column end address, the column address pointer is reset to column start address
+ * 				|- and page address pointer is increased by 1
+ * 				|- both column and page address pointers reach the end address, the pointers are reset to column start address and page start address
  * 		       01b,Vertical Addressing Mode;
+ * 		       	|- after the display RAM is read/written, the page address pointer is increased automatically by 1
+ * 		       	|- page address pointer reaches the page end address, the page address pointer is reset to page start address
+ * 		       	|- and column address pointer is increased by 1
+ * 		       	|- both column and page address pointers reach the end address, the pointers are reset to column start address and page start address
  * 		       10b,Page Addressing Mode (RESET);
- * 		       	|- display RAM is read/written, the column address pointer is increased automatically by 1
+ * 		       	|- after the display RAM is read/written, the column address pointer is increased automatically by 1
  * 		       	|- column address pointer reaches column end address, the column address pointer is reset to column start address
  * 		       	|- page address pointer is not changed (Users have to set the new page and column addresses)
  * 		       11b,Invalid
@@ -249,8 +308,12 @@ uint8_t oled_Set_Memory_Addr_Mode(addr_Mode_t	addr_Mode)
 
 
 /**
- * @brief Setup column start and end address
+ * @brief Set the column start and end address of the target display location by command 21h.
  * @NOTE	** This command is only for horizontal or vertical addressing mode
+ * 		|- This triple byte command specifies column start address and end address of the DDRAM
+ *		|- also sets the column address pointer to column start address
+ *		|- If horizontal address mode enabled by command 20h, after finishing read/write one column data, column address is automatically increment by 1.
+ *		|- column address reach end column address, auto back to reset start column address, page(row) increment to next page(row)
  * @param columnStartAddr: [in] column start address, Column start address, range : 0-127d, (RESET=0d)
  * @param columnEndAddr  : [in] column end   address, Column end   address, range : 0-127d, (RESET =127d)
  * @retval status	0:ok	1:error
@@ -262,12 +325,15 @@ uint8_t oled_Set_Column_Start_End_Addr_HVMode(uint8_t columnStartAddr, uint8_t c
 	if (columnStartAddr < 0 || columnStartAddr >= oled_H_Pix || columnEndAddr < 0 || columnEndAddr >= oled_H_Pix)
 		return 1;
 
+	// cmd 0x21 Set Column Address range
 	res = oled_Write_CMD(oled_cmd_set_col_addr_range_1);
 	if (res != 0)
 		return 1;
 
-	uint8_t startAddr = (columnStartAddr & 0b01111111);
-	uint8_t   endAddr = (columnEndAddr   & 0b01111111);
+	//	Column start address A[6:0]	(RESET=0d)
+	//	Column   end address B[6:0]	(RESET=127d)
+	uint8_t startAddr = (columnStartAddr & 0b01111111);	//A[6:0]
+	uint8_t   endAddr = (columnEndAddr   & 0b01111111);	//B[6:0]
 	res = oled_Write_CMD(startAddr);
 	if (res != 0)
 		return 1;
@@ -280,8 +346,12 @@ uint8_t oled_Set_Column_Start_End_Addr_HVMode(uint8_t columnStartAddr, uint8_t c
 
 
 /**
- * @brief Setup page start and end address
+ * @brief Set the page start and end address of the target display location by command 22h.
  * @NOTE	** This command is only for horizontal or vertical addressing mode
+ * 		|- This triple byte command specifies page start address and end address of the DDRAM.
+ * 		|- also sets the page address pointer to page start address
+ * 		|- If vertical address mode enabled by command 20h, after finishing read/write one page data, page address is automatically increment by 1.
+ * 		|- page address reach end page address, auto back to reset start page address, column auto increment to next column
  * @param pageStartAddr: [in] Page start Address, range : 0-7d,  (RESET = 0d)
  * @param pageEndAddr  : [in] Page end   Address, range : 0-7d,  (RESET = 7d)
  * @retval status	0:ok	1:error
@@ -293,12 +363,15 @@ uint8_t oled_Set_Page_Start_End_Addr_HVMode(uint8_t pageStartAddr, uint8_t pageE
 	if (pageStartAddr < 0 || pageStartAddr >= (oled_V_Pix/8) || pageEndAddr < 0 || pageEndAddr >= (oled_V_Pix/8))
 		return 1;
 
+	//	cmd 0x22	Set Page Address range
 	res = oled_Write_CMD(oled_cmd_set_page_addr_range_1);
 	if (res != 0)
 		return 1;
 
-	uint8_t startAddr = (pageStartAddr & 0b00000111);
-	uint8_t   endAddr = (pageEndAddr   & 0b00000111);
+	//	Page start address A[2:0]	(RESET=0)
+	//	Page   end address B[2:0]	(RESET=7)
+	uint8_t startAddr = (pageStartAddr & 0b00000111);	// A[2:0]
+	uint8_t   endAddr = (pageEndAddr   & 0b00000111);	// B[2:0}
 	res = oled_Write_CMD(startAddr);
 	if (res != 0)
 		return 1;
@@ -334,7 +407,9 @@ uint8_t oled_Set_Page_Start_Addr_PageMode(uint8_t pageVal)
 
 
 /**
- * @brief Set display RAM display start line register from 0-63 using X5X3X2X1X0
+ * @brief Set [display RAM] display start line register from 0-63 using X5X3X2X1X0
+ * @NOTE	With value equal to 0, DRAM row 0 is mapped to COM0.
+ * 			With value equal to 1, DRAM row 1 is mapped to COM0 and so on.
  * @param startLineVal: [in] Set Display Start Line  0 ~ oled_V_Pix-1
  * @retval status	0:ok	1:error
  */
@@ -344,6 +419,7 @@ uint8_t oled_Set_Display_Start_Line(uint8_t startLineVal)
 	if (startLineVal < 0 || startLineVal >= oled_V_Pix)
 		return 1;
 
+	//	cmd 0x40 ~ 0x70	Set Display Start Line
 	uint8_t startLine = (startLineVal & 0b00011111) | oled_cmd_set_display_start_line;
 	res = oled_Write_CMD(startLine);
 
@@ -354,6 +430,8 @@ uint8_t oled_Set_Display_Start_Line(uint8_t startLineVal)
 /**
  * @brief Set Segment Re-map, 	A0h,X[0]=0b: column address 0 is mapped to SEG0 (RESET)
  * 								A1h,X[0]=1b: column address 127 is mapped to SEG0
+ * @NOTE This command changes the mapping between the display data column address and the segment driver.
+ * 		 This command only affects subsequent data input.  Data already stored in GDDRAM will have no changes.
  * @param	segment_Map_t:	[in] keep default or remap
  * @retval status	0:ok	1:error
  */
@@ -361,6 +439,7 @@ uint8_t oled_Set_Segment_Map(segment_Map_t segment_Map)
 {
 	uint8_t res = 0;
 
+	// cmd 0xA0/1 Set Segment Re-map
 	uint8_t segmentMap = (segment_Map & 0x01) | oled_cmd_set_segment_remap_n;
 	res = oled_Write_CMD(segmentMap);
 
@@ -380,10 +459,12 @@ uint8_t oled_Set_MUX_Ratio(uint8_t MUX_Ratio)
 	MUX_Ratio -= 1;
 	if (MUX_Ratio < 15 || MUX_Ratio >= 64)
 		return 1;
+	//	cmd 0xA8  set multiplex ratio value (15 ~ 63)+1
 	res = oled_Write_CMD(oled_cmd_set_multiplex_ratio_1);
 	if (res != 0)
 		return 1;
 
+	//	cmd 15d~63d	multiplex ratio value
 	uint8_t muxRatio = (MUX_Ratio & 0b00111111);
 	res = oled_Write_CMD(muxRatio);
 	return res;
@@ -395,6 +476,15 @@ uint8_t oled_Set_MUX_Ratio(uint8_t MUX_Ratio)
  * 			C0h, X[3]=0b: normal mode (RESET) Scan from COM0 to COM[N –1]
  * 			C8h, X[3]=1b: remapped mode. Scan from COM[N-1] to COM0
  * 			[Where N is the Multiplex ratio   oled_Set_MUX_Ratio() ]
+ * @NOTE  --------------------------------------------------------
+ * 		------>	*---------------------*  com0 <-----
+ * 		↑		*	    oled panel	  *            ↑
+ * 		↑	-->	*---------------------*	 com63<--  ↑
+ * 		↑	↑									↑  ↑
+ * 		<---↑------	*------------* row63  ------>  ↑
+ * remap	↑		*   GDDRAM   * normol mapping  ↑	// Normal mapping
+ * 			<------ *------------* row0  ---------->
+ * 	// remapping
  * @param com_Map: [in] com scan dirction (remap or not)
  * @retval status	0:ok	1:error
  */
@@ -403,10 +493,12 @@ uint8_t oled_Set_Com_Map_Output_Scan_Dirct(com_Map_t com_Map)
 	uint8_t res = 0;
 
 	switch (com_Map) {
-		case common_normal_mapping:
+		case com_normal_mapping:
+			// cmd C0h	DDRAM row-0  ->  COM0
 			res = oled_Write_CMD(oled_cmd_set_com_scan_dir_increase);
 			break;
-		case common_remapping:
+		case com_remapping:
+			// cmd C8h	DDRAM row-63 ->  COM0
 			res = oled_Write_CMD(oled_cmd_set_com_scan_dir_decrease);
 			break;
 		default:
@@ -420,6 +512,8 @@ uint8_t oled_Set_Com_Map_Output_Scan_Dirct(com_Map_t com_Map)
 
 /**
  * @brief set display vertical offset value 0~63
+ * @NOTE	both RAM and oled-row offset [together move]
+ * @NOTE	this is a double byte command
  * @param offsetVal: [in] vertical offset value
  * @retval status	0:ok	1:error
  */
@@ -430,10 +524,12 @@ uint8_t oled_Set_Display_Offset_Vertical(uint8_t offsetVal)
 	if (offsetVal < 0 || offsetVal >= oled_V_Pix)
 		return 1;
 
+	//	cmd 0xD3 set display offset (DDRAM oled_row indicate line start)
 	res = oled_Write_CMD(oled_cmd_set_display_offset_1);
 	if (res != 0)
 		return 1;
 
+	// cmd set offset line value from 0 to 63
 	uint8_t offsetValue = (offsetVal & 0b00111111);
 	res = oled_Write_CMD(offsetValue);
 
@@ -443,6 +539,7 @@ uint8_t oled_Set_Display_Offset_Vertical(uint8_t offsetVal)
 
 /**
  * @brief Set COM Pins Hardware Configuration
+ * @NOTE  This command sets the COM signals pin configuration to match the OLED panel hardware layout.
  * @param common_Hardware_Config: [in] common config parameters
  * @retval staus	0:ok	1:error
  */
@@ -450,6 +547,7 @@ uint8_t oled_Set_Com_Pins_Hardware_Config(common_Hardware_Config_t common_Hardwa
 {
 	uint8_t res = 0;
 
+	// cmd Set COM Pins Hardware Configuration (DAh)
 	res = oled_Write_CMD(oled_cmd_set_com_pins_1);
 	if (res != 0)
 		return 1;
@@ -482,6 +580,7 @@ uint8_t oled_Set_Display_Clock_Parameter(uint8_t Fosc, uint8_t factor_D)
 		return 1;
 
 	uint8_t clockVal = (Fosc << 4) |factor_D;
+	// cmd 0xD5	Set Display Clock Divide Ratio/ Oscillator Frequency
 	res = oled_Write_CMD(oled_cmd_set_clk_div_1);
 	if (res != 0)
 		return 1;
@@ -737,7 +836,41 @@ uint8_t oled_Set_Vertical_Scroll_Area(uint8_t vertical_scroll_area_start_row, ui
 	return res;
 }
 
+// ############################################################################
+/**
+ * @brief	Charge Pump Setting
+ * @NOTE	The Charge Pump must be enabled by the following command:
+ * 			  |- 8Dh -> Charge Pump Setting
+ * 			  |- 14h -> Enable Charge Pump
+ * 			  |- AFh -> Display ON
+ * @param	charge_pumt_control: [in] charge pump enable or disable
+ * @retval	status	0:ok	>0:error
+ */
+uint8_t oled_Set_Charge_Pump(charge_pump_control_t	charge_pumt_control)
+{
+	uint8_t res = 0;
 
+	//	cmd 0x8D	Charge Pump Setting
+	res = oled_Write_CMD(oled_cmd_set_charge_pump_1);
+	if (res != 0)
+		return 1;
+
+	switch (charge_pumt_control) {
+		case charge_pump_disable:
+			res = oled_Write_CMD(0x10);
+			break;
+		case charge_pump_enable:
+			res = oled_Write_CMD(0x14);
+			break;
+		default:
+			res = 1;
+			break;
+	}
+
+	return res;
+}
+
+// ############################################################################
 
 /**
   * @brief oled 12864 init
@@ -745,62 +878,67 @@ uint8_t oled_Set_Vertical_Scroll_Area(uint8_t vertical_scroll_area_start_row, ui
   */
 uint8_t oled_i2c_Init(void)
 {
-	// Wait for the screen to boot
-	HAL_Delay(100);
+	// status flag
 	int status = 0;
 
-	// Init LCD
-	status += oled_Set_Display_ON_OFF(display_off);   				// Display off
+	// Wait for the screen to boot
+	HAL_Delay(500);
 
-	status += oled_Set_Memory_Addr_Mode(addr_mode_Page);			// Set Memory Addressing Mode
+	// oled initial process
+	/* 0.Display Off */
+	status += oled_Set_Display_ON_OFF(display_off);
 
-	status += oled_Set_Page_Start_Addr_PageMode(0x00);				// Set Page Start Address for Page Addressing Mode,0-7
+	/* 1.Memory address mode : horizontal mode */
+	status += oled_Set_Memory_Addr_Mode(addr_mode_Horizontal);
+	status += oled_Set_Page_Start_End_Addr_HVMode(0, 7);
+	status += oled_Set_Column_Start_End_Addr_HVMode(0, 127);
 
-	status += oled_Write_CMD(oled_cmd_set_com_scan_dir_decrease);   // Set COM Output Scan Direction
+	/* 2.Set MUX Ratio */
+	status += oled_Set_MUX_Ratio(oled_V_Pix);
 
-	status += oled_Set_Column_Start_Addr_PageMode(0x00);			// Set column start address[page mode]
+	/* 3.Set Display Offset */
+	status += oled_Set_Display_Offset_Vertical(0);
 
-	status += oled_Set_Display_Start_Line(0x00);					// Set start line address
+	/* 4.Set Display Start Line */
+	status += oled_Set_Display_Start_Line(0);
 
-	status += oled_Set_Contrast(0x00);								// set contrast control register 0x00-0xFF
+	/* 5.Set Segment Re-map */
+	status += oled_Set_Segment_Map(segment_remapping);
 
-	status += oled_Set_Segment_Map(segment_default_mapping);
+	/* 6.Set COM Output Scan Direction (map) */
+	status += oled_Set_Com_Map_Output_Scan_Dirct(com_remapping);
 
-	status += oled_Set_Display_Normal_Inverse(display_normal);		// Set normal display
+	/* 7. Set Pre-charge Period value phase1(1~15) phase2(1~15) */
+	status += oled_Set_PreCharge_Period(2, 2);
 
-	status += oled_Set_MUX_Ratio(oled_V_Pix);						// Set multiplex ratio(1 to 64)
+	/* 8.Set COM Pins hardware configuration */
+	status += oled_Set_Com_Pins_Hardware_Config(common_alternative_config|common_disable_left_right_remap);
 
-	status += oled_Set_Display_Follow_RAM_Or_No(RAM_output_follow); // 0xa4,Output follows RAM content;0xa5,Output ignores RAM content
+	/* 9.Set Contrast Control */
+	status += oled_Set_Contrast(0x7F);
 
-	status += oled_Write_CMD(oled_cmd_set_display_offset_1);   		// Set display offset
-	status += oled_Write_CMD(0x00);   								// No offset
+	/* 10.Disable Entire Display On */
+	status += oled_Set_Display_Follow_RAM_Or_No(RAM_output_follow);
 
-	status += oled_Write_CMD(oled_cmd_set_clk_div_1);   			// Set display clock divide ratio/oscillator frequency
-	status += oled_Write_CMD(0xF0);   								// Set divide ratio
+	/* 11.Set Normal Display */
+	status += oled_Set_Display_Normal_Inverse(display_normal);
 
-	status += oled_Write_CMD(oled_cmd_set_pre_charge_period_1);   	// Set pre-charge period
-	status += oled_Write_CMD(0x22);
+	/* 12.Set Osc Frequency */
+	status += oled_Set_Display_Clock_Parameter(0x0F, 0);
 
-	status += oled_Write_CMD(oled_cmd_set_com_pins_1);   			// Set com pins hardware configuration
-#ifdef oled_com_lr_remap
-	status += oled_Write_CMD(0x32);   								// Enable COM left/right remap
-#else
-	status += oled_Write_CMD(0x12);   								// Do not use COM left/right remap
-#endif // SSD1306_COM_LR_REMAP
+	/* 13.Enable charge pump regulator */
+	status += oled_Set_Charge_Pump(charge_pump_enable);
 
-	status += oled_Write_CMD(oled_cmd_set_Vcomh_deselect_level_1);  // Set vcomh
-	status += oled_Write_CMD(0x20);   								// 0x20,0.77xVcc
+	/* 14.clear whole screen write 0 to GDDRAM */
+	status += oled_Fill_Screen_Color(oled_color_Black);
 
-	status += oled_Write_CMD(oled_cmd_set_charge_pump_1);   		// Set DC-DC enable
-	status += oled_Write_CMD(0x14);   								// bit2 = 1, Enable charge pump during display on
+	/* 15.Display On */
+	status += oled_Set_Display_ON_OFF(display_on);
 
-	status += oled_Set_Display_ON_OFF(display_on);					// Turn on SSD1306 panel
+//	oled_Clear_Screen();
 
 	if (status != 0)
-		return 1;
-
-	oled_Filling(oled_color_White);
-	oled_Update_Screen();
+		return status;
 
 	return 0;
 }
@@ -817,22 +955,100 @@ uint8_t oled_Update_Screen(void)
 		return 0;	// don't need updata screen
 
 	uint8_t res = 0;
-    for (uint8_t i = 0; i < 8; i++) {
-        oled_Write_CMD(oled_cmd_set_page_start_addr_0 + i);	// page value need Increase manually.
-        oled_Write_CMD(oled_cmd_set_l_col_start_addr_0);	// column value automatic increase
-        oled_Write_CMD(oled_cmd_set_h_col_start_addr_0);
-
-        res = oled_Write_Data(&oled_display_buff[oled_H_Pix * i], sizeof(oled_display_buff)/8);
-        if (res != 0)
-        {
-        	return 1;
-        }
-    }
-
+	res = oled_Write_Data(oled_display_buff, sizeof(oled_display_buff));
 
     bufferUpdateFlag = 0;
     return res;
 }
 
 
+/**
+ * @brief	set oled all pixels -> '1'
+ * 		  include oled screen update
+ * @param	oled_color: [in] oled_color_black	oled_color_white
+ * @retval	status	0:ok	1:error
+ */
+uint8_t oled_Fill_Screen_Color(oled_color_t	oled_color)
+{
+	uint8_t res = 0;
 
+	//	set oled_buffer value
+	switch (oled_color) {
+		case oled_color_Black:
+			oled_Fill_GDDRAM_Buffer(oled_color_Black);
+			break;
+		case oled_color_White:
+			oled_Fill_GDDRAM_Buffer(oled_color_White);
+			break;
+		default:
+			return 1;
+			break;
+	}
+
+
+	//	update screen, write oled_buffer to GDDRAM
+	res = oled_Update_Screen();
+
+	return res;
+}
+
+
+/**
+ * @brief 	Draw one pixel at the specified (x,y) position.
+ * @param	px: [in] x value (0 ~ 127) column
+ * @param	py: [in] y value (0 ~ 63)  row
+ * @param	oled_color:	[in] oled_color_black	oled_color_white
+ * @retval	status	0:ok	1:error
+ */
+uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, oled_color_t oled_color)
+{
+	if (px < 0 || px >= oled_H_Pix || py < 0 || py >= oled_V_Pix)
+		return 1;
+
+	uint8_t res = 0;
+
+	switch (oled_color) {
+		case oled_color_Black:
+			oled_display_buff[px + (py/8)*oled_H_Pix] ^=  (0x01 << (py%8));
+			bufferUpdateFlag = 1;
+			break;
+		case oled_color_White:
+			oled_display_buff[px + (py/8)*oled_H_Pix] |=  (0x01 << (py%8));
+			bufferUpdateFlag = 1;
+			break;
+		default:
+			res = 1;
+			break;
+	}
+
+	return res;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//  ############################################################################
+/**
+ *	Men write transfer complete callback
+ */
+#if	oled_i2c_dma
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	printf("mem tx cplt call back\r\n");
+	if (hi2c->Instance == oled_i2c.Instance)
+	{
+		oled_i2c_dma_mem_write_flag = 1;
+	}
+}
+#endif

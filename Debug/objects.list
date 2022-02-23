@@ -1,5 +1,6 @@
 "./Core/Src/main.o"
 "./Core/Src/oled12864_I2C.o"
+"./Core/Src/oled_font.o"
 "./Core/Src/stm32f4xx_hal_msp.o"
 "./Core/Src/stm32f4xx_it.o"
 "./Core/Src/syscalls.o"

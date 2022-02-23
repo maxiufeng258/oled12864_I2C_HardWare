@@ -13,6 +13,9 @@
 /* oled connect I2C port, Change according to the actual setting [hi2c1, hi2c2 or hi2cx] */
 #define oled_i2c	hi2c2
 
+/* wether or not use DMA for oled-I2C */
+#define	oled_i2c_dma	1
+
 /* oled i2c address
  * 	0x78	->	0b  0 1 1 1   1 0  0     0
  * 				bit	7 6 5 4   3 2  1     0
@@ -87,8 +90,8 @@ typedef segment_Map_TypeDef	segment_Map_t;
 
 /* common reMapping or not, scan direction */
 typedef enum {
-	common_normal_mapping	=	0,
-	common_remapping		=	1,
+	com_normal_mapping	=	0,
+	com_remapping		=	1,
 }com_Map_TypeDef;
 typedef com_Map_TypeDef	com_Map_t;
 
@@ -163,7 +166,15 @@ typedef	horizontal_scroll_time_interval_TypeDef	vertical_horizontal_scroll_time_
 
 //--------------------------------------------------
 
+// ############################################################################
+/* Charge Pump Command */
+typedef enum {
+	charge_pump_disable	=	0,	// Disable charge pump(RESET)
+	charge_pump_enable	=	1,	// Enable charge pump during display on
+}charge_pump_control_TypeDef;
+typedef	charge_pump_control_TypeDef	charge_pump_control_t;
 
+// ############################################################################
 
 /**
  * define oled Commands
@@ -254,10 +265,12 @@ uint8_t oled_Set_Scroll_Deactivate(void);
 uint8_t oled_Set_Scroll_Active(void);
 uint8_t oled_Set_Vertical_Scroll_Area(uint8_t vertical_scroll_area_start_row, uint8_t vertical_scroll_area_num_rows);
 
+uint8_t oled_Set_Charge_Pump(charge_pump_control_t	charge_pumt_control);
+
 uint8_t oled_i2c_Init(void);
 uint8_t oled_Update_Screen(void);
-
-
+uint8_t oled_Fill_Screen_Color(oled_color_t	oled_color);
+uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, oled_color_t oled_color);
 
 
 
