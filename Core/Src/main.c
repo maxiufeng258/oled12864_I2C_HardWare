@@ -111,20 +111,70 @@ int main(void)
   oled_Fill_Screen_Color(oled_color_White);
 
   HAL_Delay(1000);
-  oled_Draw_Pixel(1, 1, oled_color_Black);
-  oled_Draw_Pixel(2, 2, oled_color_Black);
-  oled_Draw_Pixel(3, 3, oled_color_Black);
-  oled_Draw_Pixel(4, 4, oled_color_Black);
-  oled_Draw_Pixel(5, 5, oled_color_Black);
-  oled_Draw_Pixel(6, 6, oled_color_Black);
-  oled_Draw_Pixel(7, 7, oled_color_Black);
-  oled_Draw_Pixel(8, 6, oled_color_Black);
-  oled_Draw_Pixel(9, 5, oled_color_Black);
-  oled_Draw_Pixel(10, 4, oled_color_Black);
+  oled_Draw_Pixel(1, 1, pixel_control_ON);
+  oled_Draw_Pixel(2, 2, pixel_control_ON);
+  oled_Draw_Pixel(3, 3, pixel_control_ON);
+  oled_Draw_Pixel(4, 4, pixel_control_ON);
+  oled_Draw_Pixel(5, 5, pixel_control_ON);
+  oled_Draw_Pixel(6, 6, pixel_control_ON);
+  oled_Draw_Pixel(7, 7, pixel_control_ON);
+  oled_Draw_Pixel(8, 6, pixel_control_ON);
+  oled_Draw_Pixel(9, 5, pixel_control_ON);
+  oled_Draw_Pixel(10, 4, pixel_control_ON);
   res = oled_Update_Screen();
   if (res != 0)
 	  HAL_GPIO_TogglePin(LD3_Blue_GPIO_Port, LD3_Blue_Pin);
 
+  HAL_Delay(1000);
+  oled_Draw_Character(0, 0, 'H', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+  HAL_Delay(200);
+  oled_Draw_Character(0, 16, 'G', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+  HAL_Delay(200);
+  oled_Draw_Character(0, 32, 'K', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+  HAL_Delay(200);
+  oled_Draw_Character(0, 48, 'Q', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+  HAL_Delay(200);
+  oled_Draw_Character(8, 0, 'Z', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+  HAL_Delay(200);
+  oled_Draw_Character(16, 0, '1', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+  HAL_Delay(200);
+  oled_Draw_Character(24, 0, '~', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+  HAL_Delay(200);
+  oled_Draw_Character(32, 0, '8', oled_Font_ASCII_08_16_courierNew);
+  oled_Update_Screen();
+
+  HAL_Delay(200);
+  oled_Draw_Character(40, 0, '4', oled_Font_ASCII_16_32_courierNew);
+  oled_Update_Screen();
+
+  HAL_Delay(200);
+  oled_Draw_Character(40, 32, '5', oled_Font_ASCII_16_32_courierNew);
+  oled_Update_Screen();
+
+  HAL_Delay(200);
+  oled_Draw_Character(56, 0, '5', oled_Font_ASCII_12_24_courierNew);
+  oled_Update_Screen();
+
+  HAL_Delay(200);
+  oled_Draw_Character(56, 24, '5', oled_Font_ASCII_12_24_courierNew);
+  oled_Update_Screen();
+
+  HAL_Delay(200);
+  oled_Draw_Character(56, 44, '5', oled_Font_ASCII_12_24_courierNew);
+  oled_Update_Screen();
+
+  HAL_Delay(1000);
+  oled_Set_Display_Normal_Inverse(display_invers);
+
+  HAL_Delay(1000);
+  oled_Set_Display_Normal_Inverse(display_normal);
 
   printf("oled 12864 I2C code...\r\n");
   /* USER CODE END 2 */

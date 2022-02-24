@@ -7,19 +7,27 @@
 
 #include <oled12864_I2C.h>
 #include "stdio.h"
+#include "string.h"
+#include "stdlib.h"
 
 extern I2C_HandleTypeDef oled_i2c;
 
 #define	oled_timeOut	(10*1000)
 
 
-/* some flag and variables */
-static uint8_t bufferUpdateFlag = 0;	// If this flag is SET, the oled_display_buff has changed.
+/* oled's some flag and variables */
+typedef struct {
+			// 1 update		0 no-update
+	uint8_t bufferUpdateFlag;		// If this flag is SET, the oled_display_buff has changed.
+			// 1 on		0 off
+	uint8_t clear_GDDRAM_Use_0_1_Flag;	// clear all pixels (GDDRAM) value use 0 or 1
+}oled_flag_variable_TypeDef;
+static oled_flag_variable_TypeDef	oled = {0, 0};
 
 #if	oled_i2c_dma
 static uint8_t	oled_i2c_dma_mem_write_flag = 0;
 #endif
-/* --- end --- */
+/* ------------- end ------------- */
 
 
 /* oled display data store */
@@ -101,7 +109,7 @@ static void oled_Fill_GDDRAM_Buffer(oled_color_t color)
 		oled_display_buff[i] = (color == oled_color_Black)? (0x00): (0xFF);
 	}
 	/* set buffer updated flag */
-	bufferUpdateFlag = 1;
+	oled.bufferUpdateFlag = 1;
 }
 
 
@@ -190,10 +198,12 @@ uint8_t oled_Set_Display_Normal_Inverse(display_Way_t display_Way)
 		case display_normal:
 			//	cmd 0xA6  normal display
 			res = oled_Write_CMD(oled_cmd_display_normal);
+
 			break;
 		case display_invers:
 			//	cmd 0xA7  inverse display
 			res = oled_Write_CMD(oled_cmd_display_inverse);
+
 			break;
 		default:
 			return 1;
@@ -951,13 +961,13 @@ uint8_t oled_i2c_Init(void)
  */
 uint8_t oled_Update_Screen(void)
 {
-	if (bufferUpdateFlag == 0)
+	if (oled.bufferUpdateFlag == 0)
 		return 0;	// don't need updata screen
 
 	uint8_t res = 0;
 	res = oled_Write_Data(oled_display_buff, sizeof(oled_display_buff));
 
-    bufferUpdateFlag = 0;
+    oled.bufferUpdateFlag = 0;
     return res;
 }
 
@@ -976,9 +986,11 @@ uint8_t oled_Fill_Screen_Color(oled_color_t	oled_color)
 	switch (oled_color) {
 		case oled_color_Black:
 			oled_Fill_GDDRAM_Buffer(oled_color_Black);
+			oled.clear_GDDRAM_Use_0_1_Flag = 0;
 			break;
 		case oled_color_White:
 			oled_Fill_GDDRAM_Buffer(oled_color_White);
+			oled.clear_GDDRAM_Use_0_1_Flag = 1;
 			break;
 		default:
 			return 1;
@@ -995,40 +1007,162 @@ uint8_t oled_Fill_Screen_Color(oled_color_t	oled_color)
 
 /**
  * @brief 	Draw one pixel at the specified (x,y) position.
- * @param	px: [in] x value (0 ~ 127) column
- * @param	py: [in] y value (0 ~ 63)  row
- * @param	oled_color:	[in] oled_color_black	oled_color_white
+ * @param	px: [in] x value (0 ~ 127) column	[< oled_H_pix]
+ * @param	py: [in] y value (0 ~ 63)  row		[< oled_V_pix]
+ * @param	pixel_control:	[in] pixel_control_ON	pixel_control_OFF
  * @retval	status	0:ok	1:error
  */
-uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, oled_color_t oled_color)
+uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, pixel_control_t pixel_control)
 {
 	if (px < 0 || px >= oled_H_Pix || py < 0 || py >= oled_V_Pix)
 		return 1;
-
-	uint8_t res = 0;
-
-	switch (oled_color) {
-		case oled_color_Black:
-			oled_display_buff[px + (py/8)*oled_H_Pix] ^=  (0x01 << (py%8));
-			bufferUpdateFlag = 1;
-			break;
-		case oled_color_White:
+	// Set the (x,y) pixel value to the opposite of the background value
+	if (pixel_control == pixel_control_ON)
+	{
+		//	GDDRAM buffer -> oled display	1:on	0:off(background)
+		if (oled.clear_GDDRAM_Use_0_1_Flag == 0)
+		{
 			oled_display_buff[px + (py/8)*oled_H_Pix] |=  (0x01 << (py%8));
-			bufferUpdateFlag = 1;
-			break;
-		default:
-			res = 1;
-			break;
+		}
+		//	GDDRAM buffer -> oled display	0:on	1:off(background)
+		else if (oled.clear_GDDRAM_Use_0_1_Flag == 1)
+		{
+			oled_display_buff[px + (py/8)*oled_H_Pix] &= ~(0x01 << (py%8));
+		}
+		else {
+			return 1;
+		}
+		// set buffer updata flag value
+		oled.bufferUpdateFlag = 1;
+	}
+	// set (x,y) pixel value equal background value
+	else if (pixel_control == pixel_control_OFF)
+	{
+		//	GDDRAM buffer -> oled display	1:on	0:off(background)
+		if (oled.clear_GDDRAM_Use_0_1_Flag == 0)
+		{
+			oled_display_buff[px + (py/8)*oled_H_Pix] &=  ~(0x01 << (py%8));
+		}
+		//	GDDRAM buffer -> oled display	0:on	1:off(background)
+		else if (oled.clear_GDDRAM_Use_0_1_Flag == 1)
+		{
+			oled_display_buff[px + (py/8)*oled_H_Pix] |=  (0x01 << (py%8));
+		}
+		else {
+			return 1;
+		}
+		// set buffer updata flag value
+		oled.bufferUpdateFlag = 1;
+	}
+	else
+	{
+		return 1;
 	}
 
-	return res;
+	return 0;
+}
+
+
+/**
+ * @brief	Draw Line from Ps(x0,y0)     to      Pe(x1,y1)
+ * 			point to point	start point         End point
+ * @param	x0:	[in] start point x value
+ * @param	y0:	[in] start point y value
+ * @param	x1:	[in]   end point x value
+ * @param	y1: [in]   end point y value
+ * @retval	status	0:ok	1:error
+ */
+uint8_t oled_Draw_Line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, line_width_t line_width)
+{
+
+	return 0;
 }
 
 
 
+/**
+ * @brief	Display the character at the given (x,y) point
+ * @param	px: [in] x value (0 ~ 127) column	[< oled_H_pix]
+ * @param	py: [in] y value (0 ~ 63)  row		[< oled_V_pix]
+ * @param	ch:	[in] character to be displayed
+ * @param	fontX: [in] using font
+ * @retval	status	0:ok	1:error
+ */
+uint8_t oled_Draw_Character(uint8_t px, uint8_t py, unsigned char ch, oledFont_t fontX)
+{
+	if (px < 0 || px >= oled_H_Pix || py < 0 || py >= oled_V_Pix)
+		return 1;
+
+	if (px + fontX.font_Width > oled_H_Pix)
+	{
+//		return 1;
+//		px = 0;
+//		py = py + fontX.font_Height;
+	}
+	if (py + fontX.font_Height > oled_V_Pix)
+		{
+//			return 1;
+//			py = 0;
+//			px = px + fontX.font_Width;
+		}
+
+	// write character to GDDRAMBuffer
+	uint8_t i, startPx = px, startPy = py;
+	uint8_t chVal = ch - ' ';
+	uint8_t * ptrFont = malloc(sizeof(uint8_t) * fontX.font_Width * fontX.font_Height / 8);
+	memcpy(ptrFont, &(fontX.font_Array[chVal * (fontX.font_Width * fontX.font_Height / 8)]), (fontX.font_Width * fontX.font_Height / 8));
+	for (i = 0; i < (fontX.font_Height / 8); i++)	// scan font char height pixel -> n Byte
+	{
+		px = startPx;
+
+		for (uint8_t j = 0; j < fontX.font_Width; j++)	// scan font char height pixel
+		{
+			py = startPy + i * 8;
+
+			for (uint8_t k = 0; k < 8; k++)	// Split each pixel data
+			{
+				if (((*(ptrFont + i * fontX.font_Width + j)) & (0x01 << k)) == (0x01 << k))
+				{
+					oled_Draw_Pixel(px, py++, pixel_control_ON);
+				}
+				else {
+					oled_Draw_Pixel(px, py++, pixel_control_OFF);
+				}
+			}
+			// next column
+			px++;
+		}
+	}
+
+	// less than one page section
+	i = fontX.font_Height % 8;
+	if (i != 0)
+	{
+		px = startPx;
+
+		for (uint8_t j = 0; j < fontX.font_Width; j++)	// scan font char height pixel
+		{
+			py = startPy + (fontX.font_Height / 8) * 8;
+
+			for (uint8_t k = 0; k < i; k++)	// Split each pixel data
+			{
+				if (((*(ptrFont + i * fontX.font_Width + j)) & (0x01 << k)) == (0x01 << k))
+				{
+					oled_Draw_Pixel(px, py++, pixel_control_ON);
+				}
+				else {
+					oled_Draw_Pixel(px, py++, pixel_control_OFF);
+				}
+			}
+			// next column
+			px++;
+		}
+	}
 
 
-
+	free(ptrFont);
+	return 0;
+}
 
 
 
@@ -1051,4 +1185,12 @@ void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 		oled_i2c_dma_mem_write_flag = 1;
 	}
 }
+
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+	if (hi2c->Instance == oled_i2c.Instance)
+		printf("i2c DMA error...\r\n");
+}
+
 #endif

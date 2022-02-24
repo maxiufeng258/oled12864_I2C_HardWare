@@ -10,6 +10,8 @@
 
 #include "stm32f4xx_hal.h"
 
+#include "oled_font.h"
+
 /* oled connect I2C port, Change according to the actual setting [hi2c1, hi2c2 or hi2cx] */
 #define oled_i2c	hi2c2
 
@@ -267,11 +269,29 @@ uint8_t oled_Set_Vertical_Scroll_Area(uint8_t vertical_scroll_area_start_row, ui
 
 uint8_t oled_Set_Charge_Pump(charge_pump_control_t	charge_pumt_control);
 
+// #############################################################################
+/* set or reset pixel point, used for oled_Draw_Pixel() */
+typedef enum {
+	pixel_control_ON	=	0,	// Differentially displayed with the background.
+	pixel_control_OFF	=	1,	// The same color as the background.
+}pixel_control_TypeDef;
+typedef	pixel_control_TypeDef	pixel_control_t;
+
+/* define Line width value, There are 3 preset line width values */
+typedef enum {
+	line_width_slim		=	1,	// 1 pixel
+	line_width_medium	=	2,	// 2 pixel
+	line_width_bold		=	3,	// 3 pixel
+}line_width_TypeDef;
+typedef	line_width_TypeDef	line_width_t;
+
+
 uint8_t oled_i2c_Init(void);
 uint8_t oled_Update_Screen(void);
 uint8_t oled_Fill_Screen_Color(oled_color_t	oled_color);
-uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, oled_color_t oled_color);
 
+uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, pixel_control_t pixel_control);
+uint8_t oled_Draw_Character(uint8_t px, uint8_t py, unsigned char ch, oledFont_t fontX);
 
 
 
