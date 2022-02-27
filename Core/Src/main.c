@@ -104,79 +104,151 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   uint8_t res = oled_i2c_Init();
+
   if (res != 0)
 	  HAL_GPIO_TogglePin(LD1_Red_GPIO_Port, LD1_Red_Pin);
   printf("%d\r\n", res);
 
-  oled_Fill_Screen_Color(oled_color_White);
+//  oled_Fill_Screen_Color(oled_color_White);
+
+//  HAL_Delay(100);
+//  oled_Draw_Round_Rectangle(0, 0, 127, 63, 10, line_width_bold);
+//  oled_Update_Screen();
+
+
+//  HAL_Delay(100);
+//  oled_Draw_Character(12, 12, '7', oled_Font_ASCII_16_32_digital7V4);
+//  oled_Update_Screen();
+
+  HAL_Delay(500);
+  oled_Draw_Chinese_String(4, 0, oled_chinese_str_16_16_songTi, 2 , 10);
+  oled_Update_Screen();
+
+//  HAL_Delay(100);
+//  oled_Draw_Chinese_String(0, 0, oled_chinese_str_24_24_songTi, 0 , 10);
+//  oled_Update_Screen();
 
   HAL_Delay(1000);
-  oled_Draw_Pixel(1, 1, pixel_control_ON);
-  oled_Draw_Pixel(2, 2, pixel_control_ON);
-  oled_Draw_Pixel(3, 3, pixel_control_ON);
-  oled_Draw_Pixel(4, 4, pixel_control_ON);
-  oled_Draw_Pixel(5, 5, pixel_control_ON);
-  oled_Draw_Pixel(6, 6, pixel_control_ON);
-  oled_Draw_Pixel(7, 7, pixel_control_ON);
-  oled_Draw_Pixel(8, 6, pixel_control_ON);
-  oled_Draw_Pixel(9, 5, pixel_control_ON);
-  oled_Draw_Pixel(10, 4, pixel_control_ON);
-  res = oled_Update_Screen();
-  if (res != 0)
-	  HAL_GPIO_TogglePin(LD3_Blue_GPIO_Port, LD3_Blue_Pin);
+  oled_Draw_Chinese_String(0, 32, oled_chinese_str_24_24_songTi, 1 , 4);
+  oled_Update_Screen();
 
+//  HAL_Delay(100);
   HAL_Delay(1000);
-  oled_Draw_Character(0, 0, 'H', oled_Font_ASCII_08_16_courierNew);
-  oled_Update_Screen();
-  HAL_Delay(200);
-  oled_Draw_Character(0, 16, 'G', oled_Font_ASCII_08_16_courierNew);
-  oled_Update_Screen();
-  HAL_Delay(200);
-  oled_Draw_Character(0, 32, 'K', oled_Font_ASCII_08_16_courierNew);
-  oled_Update_Screen();
-  HAL_Delay(200);
-  oled_Draw_Character(0, 48, 'Q', oled_Font_ASCII_08_16_courierNew);
-  oled_Update_Screen();
-  HAL_Delay(200);
-  oled_Draw_Character(8, 0, 'Z', oled_Font_ASCII_08_16_courierNew);
-  oled_Update_Screen();
-  HAL_Delay(200);
-  oled_Draw_Character(16, 0, '1', oled_Font_ASCII_08_16_courierNew);
-  oled_Update_Screen();
-  HAL_Delay(200);
-  oled_Draw_Character(24, 0, '~', oled_Font_ASCII_08_16_courierNew);
-  oled_Update_Screen();
-  HAL_Delay(200);
-  oled_Draw_Character(32, 0, '8', oled_Font_ASCII_08_16_courierNew);
+  oled_Fill_Screen_Color(oled_color_Black);
+  unsigned char str1[] = "0.96' oled";
+  oled_Draw_String(8, 16, str1, sizeof(str1), oled_Font_ASCII_12_24_courierNew);
   oled_Update_Screen();
 
-  HAL_Delay(200);
-  oled_Draw_Character(40, 0, '4', oled_Font_ASCII_16_32_courierNew);
-  oled_Update_Screen();
-
-  HAL_Delay(200);
-  oled_Draw_Character(40, 32, '5', oled_Font_ASCII_16_32_courierNew);
-  oled_Update_Screen();
-
-  HAL_Delay(200);
-  oled_Draw_Character(56, 0, '5', oled_Font_ASCII_12_24_courierNew);
-  oled_Update_Screen();
-
-  HAL_Delay(200);
-  oled_Draw_Character(56, 24, '5', oled_Font_ASCII_12_24_courierNew);
-  oled_Update_Screen();
-
-  HAL_Delay(200);
-  oled_Draw_Character(56, 44, '5', oled_Font_ASCII_12_24_courierNew);
+//  HAL_Delay(100);
+  HAL_Delay(1000);
+  oled_Fill_Screen_Color(oled_color_Black);
+  oled_Draw_Round_Rectangle(3, 2, 120, 60, 12, line_width_slim);
   oled_Update_Screen();
 
   HAL_Delay(1000);
-  oled_Set_Display_Normal_Inverse(display_invers);
+  oled_Draw_rectangle(12, 12, 22, 22, line_width_medium, graphic_fill_hollow);
+  oled_Draw_rectangle(12, 25, 22, 54, line_width_slim, graphic_fill_solid);
+  oled_Update_Screen();
 
   HAL_Delay(1000);
-  oled_Set_Display_Normal_Inverse(display_normal);
+  oled_Draw_Ellipse(43, 32, 16, 12, line_width_bold, graphic_fill_hollow);
+  oled_Update_Screen();
 
-  printf("oled 12864 I2C code...\r\n");
+  HAL_Delay(1000);
+  oled_Draw_Line(125, 10, 125, 56, line_width_medium);
+  oled_Update_Screen();
+
+  HAL_Delay(1000);
+  oled_Draw_Circular_Arc(60, 32, 20, -90, 45, line_width_bold);
+  oled_Update_Screen();
+
+
+  HAL_Delay(1000);
+  oled_Draw_Round_Rectangle(85, 10, 110, 54, 6, line_width_bold);
+  oled_Update_Screen();
+
+
+
+//  HAL_Delay(100);
+//  oled_Draw_Circular_Arc(64, 32, 30, 90, 0, line_width_medium);
+//  oled_Update_Screen();
+//
+//  HAL_Delay(100);
+//  oled_Draw_Circular_Arc(64, 32, 30, -90, 0, line_width_slim);
+//  oled_Update_Screen();
+//
+//  HAL_Delay(100);
+//  oled_Draw_Circular_Arc(64, 32, 30, 180, 270, line_width_bold);
+//  oled_Update_Screen();
+//
+//  HAL_Delay(100);
+//  oled_Draw_rectangle(74, 22, 54, 42, line_width_medium, graphic_fill_hollow);
+//  oled_Update_Screen();
+
+  //
+//  HAL_Delay(200);
+//  oled_Draw_Ellipse(50, 32, 14, 14, line_width_medium, graphic_fill_solid);
+//  oled_Update_Screen();
+//
+//
+//  HAL_Delay(100);
+//  oled_Draw_rectangle(16, 8, 28, 32, line_width_bold, graphic_fill_hollow);
+//  oled_Update_Screen();
+//
+//
+//  HAL_Delay(200);
+////  oled_Set_Display_Normal_Inverse(display_invers);
+//
+//
+//  HAL_Delay(200);
+//  printf("############################################\r\n");
+
+//
+//  HAL_Delay(200);
+//  oled_Draw_Line(60, 60, 120, 0, line_width_bold);
+//  oled_Update_Screen();
+//
+//  HAL_Delay(200);
+//  oled_Draw_Line(60, 60, 120, 16, line_width_bold);
+//  oled_Update_Screen();
+//
+//  HAL_Delay(200);
+//  oled_Draw_Line(60, 60, 120, 32, line_width_bold);
+//  oled_Update_Screen();
+
+
+
+//  for (uint8_t i = 0; i < 16; i++)
+//    {
+//  	  unsigned char ch = '0' + i;
+//  	  HAL_Delay(200);
+//  	  oled_Draw_Character(i*oled_Font_ASCII_08_16_courierNew.font_Width, 0, ch, oled_Font_ASCII_08_16_courierNew);
+//  	  oled_Update_Screen();
+//    }
+//
+//  for (uint8_t i = 0; i < 16; i++)
+//    {
+//  	  unsigned char ch = '0' + i;
+//  	  HAL_Delay(200);
+//  	  oled_Draw_Character(i*oled_Font_ASCII_08_16_digital7V4.font_Width, 16, ch, oled_Font_ASCII_08_16_digital7V4);
+//  	  oled_Update_Screen();
+//    }
+//
+//  for (uint8_t i = 0; i < 9; i++)
+//  {
+//	  unsigned char ch = '0' + i;
+//	  HAL_Delay(200);
+//	  oled_Draw_Character(i*oled_Font_ASCII_16_32_courierNew.font_Width, 32, ch, oled_Font_ASCII_16_32_courierNew);
+//	  oled_Update_Screen();
+//  }
+
+
+  HAL_Delay(2000);
+  oled_Draw_BitMap(oled_bitmap_128_64, 0);
+  oled_Update_Screen();
+
+
+  printf("init succeed...\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */

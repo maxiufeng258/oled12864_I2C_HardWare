@@ -9,6 +9,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "stdlib.h"
+#include "math.h"
 
 extern I2C_HandleTypeDef oled_i2c;
 
@@ -1070,15 +1071,674 @@ uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, pixel_control_t pixel_control)
  * @param	y0:	[in] start point y value
  * @param	x1:	[in]   end point x value
  * @param	y1: [in]   end point y value
+ * @param	line_width: [in] line width (n pixel)
  * @retval	status	0:ok	1:error
  */
-uint8_t oled_Draw_Line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, line_width_t line_width)
+uint8_t oled_Draw_Line (
+		uint8_t x0, uint8_t y0,
+		uint8_t x1, uint8_t y1,
+		line_width_t line_width)
 {
+	if (x0 == x1 && y0 == y1)
+		return 1;
+
+	if (x0 > x1)
+	{
+		uint8_t m_x = x1, m_y = y1;
+		x1 = x0;	y1 = y0;
+		x0 = m_x;	y0 = m_y;
+	}
+
+	float px = 0, py = 0;
+	float tempx0 = x0, tempy0 = y0, tempx1 = x1, tempy1 = y1;
+
+	if (x0 > 127 || x1 > 127 || y0 > 64 || y1 > 64)
+		return 1;
+
+	// vertical direction
+	if (tempx0 == tempx1)
+	{
+		if (y0 > y1)
+		{
+			uint8_t im_x = x1, im_y = y1;
+			x1 = x0;	y1 = y0;
+			x0 = im_x;	y0 = im_y;
+		}
+
+		tempx0 = x0; tempy0 = y0; tempx1 = x1; tempy1 = y1;
+
+		// draw slim width line (1 pixel)
+		for (py = tempy0; py <= tempy1; py++)
+		{
+			px = tempx0;
+			oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+		}
+
+		// draw medium width line (2 pixel)
+		if (line_width == line_width_medium)
+		{
+			tempx0 = x0+1, tempy0 = y0, tempx1 = x1+1, tempy1 = y1;
+			for (py = tempy0; py <= tempy1; py++)
+			{
+				px = tempx0;
+				oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+			}
+		}
+
+		if (line_width == line_width_bold)
+		{
+			tempx0 = x0+1, tempy0 = y0, tempx1 = x1+1, tempy1 = y1;
+			for (py = tempy0; py <= tempy1; py++)
+			{
+				px = tempx0;
+				oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+			}
+
+			tempx0 = x0-1, tempy0 = y0, tempx1 = x1-1, tempy1 = y1;
+			for (py = tempy0; py <= tempy1; py++)
+			{
+				px = tempx0;
+				oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+			}
+		}
+	}
+	/* other direction */
+	else
+	{
+
+		// draw slim width line (1 pixel)
+		for (px = tempx0; px <= tempx1; px++)
+		{
+			py = (((tempy1 - tempy0)/(tempx1 - tempx0)) * (px - tempx1) + tempy1);
+//			printf("1_> (%d, %d)\r\n", (uint8_t)px, (uint8_t)py);
+			oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+		}
+
+		// draw medium width line (2 pixel)
+		if (line_width == line_width_medium)
+		{
+			tempx0 = x0, tempy0 = y0+1, tempx1 = x1, tempy1 = y1+1;
+			for (px = tempx0; px <= tempx1; px++)
+			{
+				py = (((tempy1 - tempy0)/(tempx1 - tempx0)) * (px - tempx1) + tempy1);
+//				printf("2_> (%d, %d)\r\n", (uint8_t)px, (uint8_t)py);
+				oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+			}
+		}
+
+		// draw bold width line (3 pixel)
+		if (line_width == line_width_bold)
+		{
+			tempx0 = x0, tempy0 = y0+1, tempx1 = x1, tempy1 = y1+1;
+			for (px = tempx0; px <= tempx1; px++)
+			{
+				py = (((tempy1 - tempy0)/(tempx1 - tempx0)) * (px - tempx1) + tempy1);
+//				printf("3_> (%d, %d)\r\n", (uint8_t)px, (uint8_t)py);
+				oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+			}
+
+			tempx0 = x0, tempy0 = y0-1, tempx1 = x1, tempy1 = y1-1;
+			for (px = tempx0; px <= tempx1; px++)
+			{
+				py = (((tempy1 - tempy0)/(tempx1 - tempx0)) * (px - tempx1) + tempy1);
+//				printf("3_> (%d, %d)\r\n", (uint8_t)px, (uint8_t)py);
+				oled_Draw_Pixel((uint8_t)(px), (uint8_t)(py), pixel_control_ON);
+			}
+		}
+	}
 
 	return 0;
 }
 
 
+/**
+ * @brief	Draw a rectangle given two points left-top and right-bottom
+ * 	1	*-------------------*	3
+ * 		|		fill		|
+ * 		|		fill		|
+ * 	2	*-------------------*	4
+ *
+ * @param	x0:	[in] start point x value
+ * @param	y0:	[in] start point y value
+ * @param	x1:	[in]   end point x value
+ * @param	y1: [in]   end point y value
+ * @param	line_width: [in] line width (n pixel)
+ * @param	praphic_fill_effect: [in] graphic internal fill effect [solid or hollow]
+ * @retval	status	0:ok	1:error
+ */
+uint8_t oled_Draw_rectangle (
+		uint8_t x0, uint8_t y0,
+		uint8_t x1, uint8_t y1,
+		line_width_t line_width,
+		graphic_fill_effect_t graphic_fill_effect)
+{
+//	if (x0 > x1 || y0 > y1)
+//		return 1;
+
+	if (x0 == x1 || y0 == y1)
+		return 1;
+
+	// Whether the rectangle needs to fill the flag
+	//	1:need	0:don't need
+	uint8_t rectNeedFillFlag = 1;
+
+	if (x0 > x1)
+	{
+		uint8_t temp_x_0 = x0;
+		x0 = x1;	x1 = temp_x_0;
+	}
+	if (y0 > y1)
+	{
+		uint8_t temp_y_0 = y0;
+		y0 = y1;	y1 = temp_y_0;
+	}
+
+	// left-top point
+	uint8_t p1_x = x0, p1_y = y0;
+	// left-bottom point
+	uint8_t p2_x = x0, p2_y = y1;
+	// right-top point
+	uint8_t p3_x = x1, p3_y = y0;
+	// right-bottom point
+	uint8_t p4_x = x1, p4_y = y1;
+
+	// draw rectangle frame
+	oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+	oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+	oled_Draw_Line(p2_x, p2_y, p4_x, p4_y, line_width_slim);
+	oled_Draw_Line(p3_x, p3_y, p4_x, p4_y, line_width_slim);
+
+	switch (line_width) {
+		case line_width_slim:
+		break;
+		case line_width_medium:
+			p1_x = p1_x+1; p1_y = p1_y+1;	p3_x = p3_x-1; p3_y = p3_y+1;
+			p2_x = p2_x+1; p2_y = p2_y-1;	p4_x = p4_x-1; p4_y = p4_y-1;
+
+			if (p1_x == p3_x && p1_y == p2_y)
+			{
+				oled_Draw_Pixel(p1_x, p1_y, pixel_control_ON);
+				rectNeedFillFlag = 0;
+				break;
+			}
+			if (p1_x == p3_x)
+			{
+				oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+				rectNeedFillFlag = 0;
+				break;
+			}
+			if (p1_y == p2_y)
+			{
+				oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+				rectNeedFillFlag = 0;
+				break;
+			}
+
+			oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+			oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+			oled_Draw_Line(p2_x, p2_y, p4_x, p4_y, line_width_slim);
+			oled_Draw_Line(p3_x, p3_y, p4_x, p4_y, line_width_slim);
+
+			break;
+		case line_width_bold:
+			p1_x = p1_x+1; p1_y = p1_y+1;	p3_x = p3_x-1; p3_y = p3_y+1;
+			p2_x = p2_x+1; p2_y = p2_y-1;	p4_x = p4_x-1; p4_y = p4_y-1;
+
+			if (p1_x == p3_x && p1_y == p2_y)
+			{
+				oled_Draw_Pixel(p1_x, p1_y, pixel_control_ON);
+				rectNeedFillFlag = 0;
+				break;
+			}
+			if (p1_x == p3_x)
+			{
+				oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+				rectNeedFillFlag = 0;
+				break;
+			}
+			if (p1_y == p2_y)
+			{
+				oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+				rectNeedFillFlag = 0;
+				break;
+			}
+
+			oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+			oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+			oled_Draw_Line(p2_x, p2_y, p4_x, p4_y, line_width_slim);
+			oled_Draw_Line(p3_x, p3_y, p4_x, p4_y, line_width_slim);
+
+			// -------------------------------------------------------
+			p1_x = p1_x+1; p1_y = p1_y+1;	p3_x = p3_x-1; p3_y = p3_y+1;
+			p2_x = p2_x+1; p2_y = p2_y-1;	p4_x = p4_x-1; p4_y = p4_y-1;
+
+			if (p1_x == p3_x && p1_y == p2_y)
+			{
+				oled_Draw_Pixel(p1_x, p1_y, pixel_control_ON);
+				rectNeedFillFlag = 0;
+				break;
+			}
+			if (p1_x == p3_x)
+			{
+				oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+				rectNeedFillFlag = 0;
+				break;
+			}
+			if (p1_y == p2_y)
+			{
+				oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+				rectNeedFillFlag = 0;
+				break;
+			}
+
+			oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+			oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+			oled_Draw_Line(p2_x, p2_y, p4_x, p4_y, line_width_slim);
+			oled_Draw_Line(p3_x, p3_y, p4_x, p4_y, line_width_slim);
+
+			break;
+	}
+
+
+	// Fill inside the rectangle
+	if ( (graphic_fill_effect == graphic_fill_solid) && (rectNeedFillFlag == 1) )
+	{
+		p1_x = p1_x+1; p1_y = p1_y+1;	p3_x = p3_x-1; p3_y = p3_y+1;
+		p2_x = p2_x+1; p2_y = p2_y-1;	p4_x = p4_x-1; p4_y = p4_y-1;
+
+		if (p1_x == p3_x && p1_y == p2_y)
+		{
+			oled_Draw_Pixel(p1_x, p1_y, pixel_control_ON);
+			return 0;
+		}
+		if (p1_x == p3_x)
+		{
+			oled_Draw_Line(p1_x, p1_y, p2_x, p2_y, line_width_slim);
+			return 0;
+		}
+		if (p1_y == p2_y)
+		{
+			oled_Draw_Line(p1_x, p1_y, p3_x, p3_y, line_width_slim);
+			return 0;
+		}
+
+		// Fill remaining pixels
+		uint8_t rows = p2_y - p1_y + 1;
+		uint8_t cols = p3_x - p1_x + 1;
+		if (rows <= cols)
+		{
+			for (uint8_t row = 0; row < rows; row++)
+			{
+				oled_Draw_Line(p1_x, p1_y + row, p3_x, p1_y + row, line_width_slim);
+			}
+		}
+		// numbers of rows more than cols
+		else
+		{
+			for (uint8_t col = 0; col < cols; col++)
+			{
+				oled_Draw_Line(p1_x + col, p1_y, p1_x + col, p2_y, line_width_slim);
+			}
+		}
+	}
+
+	return 0;
+}
+
+
+
+
+/**
+ * @brief	Draw circular arc
+ * 			|---------------→ x
+ * 			| .		theta
+ * 			|    .
+ * 			|       .
+ * 			|           .
+ * 		 y 	↓
+ * @param  	   cxo: [in]	center x value
+ * @param  	   cyo: [in]	center y value
+ * @param	radius: [in]	circular arc radius
+ * @param	startAngle: [in]	circular arc start angle [Unit: degree]
+ * @param	  endAngle: [in]	circular arc   end angle [Unit: degree]
+ * @param	 line_width: [in]	line width (n pixel)
+ * @retval	status	0:ok	1:error
+ */
+uint8_t	oled_Draw_Circular_Arc (
+		uint8_t cxo, uint8_t cyo,
+		uint8_t radius,
+		float startAngle, float endAngle,
+		line_width_t line_width)
+{
+	if (cxo < 0 || cxo > 127 || cyo < 0 || cyo > 63 || radius == 0)
+		return 1;
+
+	/* if start angle equal end angle, draw a circle */
+	if (startAngle == endAngle)
+	{
+		oled_Draw_Ellipse(cxo, cyo, radius, radius, line_width, graphic_fill_hollow);
+		return 0;
+	}
+
+	uint8_t	r = radius;
+	float startDeg = startAngle, endDeg = endAngle;
+	if (startAngle > endAngle)
+	{
+		float temp_s_angle = startAngle;
+		startDeg = endAngle;
+		endDeg = temp_s_angle;
+	}
+	float curRad = 0.0f;
+	float curX = 0.0f, curY = 0.0f;
+
+	// draw arc frame	slim
+	for ( float curDeg = startDeg; curDeg <= endDeg; curDeg++ )
+	{
+		curRad = curDeg * acosf(0) * 1/90.0f;
+		curX = r * 1.0f * cosf(curRad) + cxo;
+		curY = r * 1.0f * sinf(curRad)	+ cyo;
+
+		oled_Draw_Pixel((uint8_t)(curX+0.5), (uint8_t)(curY+0.5), pixel_control_ON);
+	}
+
+	// draw medium and bold line, circle arc
+	switch (line_width) {
+		case line_width_slim:
+			break;
+		case line_width_medium:
+			r -= 1;
+			if (r == 0)
+				return 0;
+			for ( float curDeg = startDeg; curDeg <= endDeg; curDeg++ )
+			{
+				curRad = curDeg * acosf(0) * 1/90.0f;
+				curX = r * 1.0f * cosf(curRad) +  cxo;
+				curY = r * 1.0f * sinf(curRad)	+ cyo;
+
+				oled_Draw_Pixel((uint8_t)(curX+0.5), (uint8_t)(curY+0.5), pixel_control_ON);
+			}
+			break;
+		case line_width_bold:
+			r -= 1;
+			if (r == 0)
+				return 0;
+			for ( float curDeg = startDeg; curDeg <= endDeg; curDeg++ )
+			{
+				curRad = curDeg * acosf(0) * 1/90.0f;
+				curX = r * 1.0f * cosf(curRad) +  cxo;
+				curY = r * 1.0f * sinf(curRad)	+ cyo;
+
+				oled_Draw_Pixel((uint8_t)(curX+0.5), (uint8_t)(curY+0.5), pixel_control_ON);
+			}
+
+			r -= 1;
+			if (r == 0)
+				return 0;
+			for ( float curDeg = startDeg; curDeg <= endDeg; curDeg++ )
+			{
+				curRad = curDeg * acosf(0) * 1/90.0f;
+				curX = r * 1.0f * cosf(curRad) +  cxo;
+				curY = r * 1.0f * sinf(curRad)	+ cyo;
+
+				oled_Draw_Pixel((uint8_t)(curX+0.5), (uint8_t)(curY+0.5), pixel_control_ON);
+			}
+
+			break;
+		default:
+			break;
+	}
+
+	return 0;
+}
+
+
+/**
+ * @brief	Draw round rectangle
+ * 	1	*--#-------------#--*	3	Corners are rounded
+ * 		#  #	fill	 *  #
+ * 		|					|
+ * 		#  #	fill	 #  #
+ * 	2	*--#-------------#--*	4
+ *
+ * @param	x0:	[in] start point x value
+ * @param	y0:	[in] start point y value
+ * @param	x1:	[in]   end point x value
+ * @param	y1: [in]   end point y value
+ * @param	radius: [in] Corner arc radius
+ * @param	line_width: [in] line width (n pixel)
+ * @retval	status	0:ok	1:error
+ */
+uint8_t oled_Draw_Round_Rectangle(
+		uint8_t x0, uint8_t y0,
+		uint8_t x1, uint8_t y1,
+		uint8_t radius,
+		line_width_t line_width)
+{
+	if (x0 == x1 || y0 == y1)
+		return 1;
+
+	// Whether the rectangle needs to fill the flag
+	//	1:need	0:don't need
+	uint8_t rectNeedFillFlag = 1;
+
+	if (x0 > x1)
+	{
+		uint8_t temp_x_0 = x0;
+		x0 = x1;	x1 = temp_x_0;
+	}
+	if (y0 > y1)
+	{
+		uint8_t temp_y_0 = y0;
+		y0 = y1;	y1 = temp_y_0;
+	}
+
+	// rectangle width and height
+	uint8_t rect_W	=	x1 - x0+1;
+	uint8_t rect_H	=	y1 - y0+1;
+	uint8_t minVal = rect_W;
+	uint8_t r = radius;
+//	uint8_t r_rem = 0;
+//	uint8_t store_x0 = x0, store_y0 = y0;
+//	uint8_t store_x1 = x1, sotre_y1 = y1;
+
+	if (rect_W > rect_H)	minVal = rect_H;
+
+	// ensure radius value Reasonable
+	if (2*r >= minVal)
+		r = minVal / 2;
+
+
+	// left top
+	oled_Draw_Circular_Arc(x0+r, y0+r, r, 180, 270, line_width);
+	// right top
+	oled_Draw_Circular_Arc(x1-r, y0+r, r, -90,   0, line_width);
+	// left bottom
+	oled_Draw_Circular_Arc(x0+r, y1-r, r,  90, 180, line_width);
+	// right bottom
+	oled_Draw_Circular_Arc(x1-r, y1-r, r,   0,  90, line_width);
+
+	oled_Draw_Line(x0+r, y0, x1-r, y0, line_width_slim);
+	oled_Draw_Line(x0, y0+r, x0, y1-r, line_width_slim);
+	oled_Draw_Line(x0+r, y1, x1-r, y1, line_width_slim);
+	oled_Draw_Line(x1, y0+r, x1, y1-r, line_width_slim);
+	x0 += 1;
+	x1 -= 1;
+	y0 += 1;
+	y1 -= 1;
+	if (line_width == line_width_medium)
+	{
+		oled_Draw_Line(x0+r, y0, x1-r, y0, line_width_slim);
+		oled_Draw_Line(x0, y0+r, x0, y1-r, line_width_slim);
+		oled_Draw_Line(x0+r, y1, x1-r, y1, line_width_slim);
+		oled_Draw_Line(x1, y0+r, x1, y1-r, line_width_slim);
+	}
+	if (line_width == line_width_bold)
+	{
+		oled_Draw_Line(x0+r, y0, x1-r, y0, line_width_slim);
+		oled_Draw_Line(x0, y0+r, x0, y1-r, line_width_slim);
+		oled_Draw_Line(x0+r, y1, x1-r, y1, line_width_slim);
+		oled_Draw_Line(x1, y0+r, x1, y1-r, line_width_slim);
+		x0 += 1;
+		x1 -= 1;
+		y0 += 1;
+		y1 -= 1;
+		oled_Draw_Line(x0+r-1, y0, x1-r+1, y0, line_width_slim);
+		oled_Draw_Line(x0, y0+r-1, x0, y1-r+1, line_width_slim);
+		oled_Draw_Line(x0+r-1, y1, x1-r+1, y1, line_width_slim);
+		oled_Draw_Line(x1, y0+r-1, x1, y1-r+1, line_width_slim);
+	}
+
+
+	// left-top point
+//	uint8_t p1_x = x0, p1_y = y0;
+//	// left-bottom point
+//	uint8_t p2_x = x0, p2_y = y1;
+//	// right-top point
+//	uint8_t p3_x = x1, p3_y = y0;
+//	// right-bottom point
+//	uint8_t p4_x = x1, p4_y = y1;
+}
+
+
+/**
+ * @brief	Draw a circle or ellipse
+ * @param  cxo: [in]	center x value
+ * @param  cyo: [in]	center y value
+ * @param	 a: [in]	x-axis radius
+ * @param	 b: [in]	y-axis radius
+ * @param	line_width: [in] line width (n pixel)
+ * @param	praphic_fill_effect: [in] graphic internal fill effect [solid or hollow]
+ * @retval	status	0:ok	1:error
+ */
+uint8_t oled_Draw_Ellipse (
+		uint8_t cxo, uint8_t cyo,
+		uint8_t a_x, uint8_t b_y,
+		line_width_t line_width,
+		graphic_fill_effect_t graphic_fill_effect)
+{
+	if (cxo > 127 || cyo > 63)	return 1;
+
+	if (a_x == 0 || a_x > 127 || b_y == 0 || b_y > 63)	return 1;
+
+	// Whether the ellipse needs to fill the flag
+	//	1:need	0:don't need
+	uint8_t ellipseNeedFillFlag = 1;
+
+	uint8_t tempxo = cxo, tempyo = cyo, tempa = a_x, tempb = b_y;
+	float tempx = 0, tempy = 0;
+
+	// Draw the outer circle of the ellipse, the thin line.
+	for (float deg = 0; deg < 360; deg +=1) {
+		float rad = deg * acosf(0) * (1/90.0f);
+		tempx = tempa * cosf(rad) + tempxo;
+		tempy = tempb * sinf(rad) + tempyo;
+
+		oled_Draw_Pixel((uint8_t)(tempx + 0.5), (uint8_t)(tempy + 0.5), pixel_control_ON);
+	}
+
+	// Different thicknesses of oval lines.
+	switch (line_width) {
+		case line_width_slim:
+			break;
+		case line_width_medium:
+			tempa = tempa - 1;	tempb = tempb - 1;
+			if (tempa == 0 || tempb == 0)
+			{
+				ellipseNeedFillFlag = 0;
+				break;
+			}
+
+			for (float deg = 0; deg < 360; deg +=1) {
+				float rad = deg * acosf(0) * (1/90.0f);
+				tempx = tempa * cosf(rad) + tempxo;
+				tempy = tempb * sinf(rad) + tempyo;
+
+				oled_Draw_Pixel((uint8_t)(tempx + 0.5), (uint8_t)(tempy + 0.5), pixel_control_ON);
+			}
+
+			break;
+		case line_width_bold:
+			tempa = tempa - 1;	tempb = tempb - 1;
+			if (tempa == 0 || tempb == 0)
+				break;
+
+			for (float deg = 0; deg < 360; deg +=1) {
+				float rad = deg * acosf(0) * (1/90.0f);
+				tempx = tempa * cosf(rad) + tempxo;
+				tempy = tempb * sinf(rad) + tempyo;
+
+				oled_Draw_Pixel((uint8_t)(tempx + 0.5), (uint8_t)(tempy + 0.5), pixel_control_ON);
+			}
+
+			// -------------------------------------------------------------------
+			tempa = tempa - 1;	tempb = tempb - 1;
+			if (tempa == 0 || tempb == 0)
+			{
+				ellipseNeedFillFlag = 0;
+				break;
+			}
+
+			for (float deg = 0; deg < 360; deg +=1) {
+				float rad = deg * acosf(0) * (1/90.0f);
+				tempx = tempa * cosf(rad) + tempxo;
+				tempy = tempb * sinf(rad) + tempyo;
+
+				oled_Draw_Pixel((uint8_t)(tempx + 0.5), (uint8_t)(tempy + 0.5), pixel_control_ON);
+			}
+
+			break;
+	}
+
+	// Fill inside the rectangle
+	if ( (graphic_fill_effect == graphic_fill_solid) && (ellipseNeedFillFlag == 1) )
+	{
+		tempa = tempa - 1;	tempb = tempb - 1;
+
+		do {
+			if (tempa == 0 && tempb == 0)
+			{
+				oled_Draw_Pixel(tempxo, tempyo, pixel_control_ON);
+				return 0;
+			}
+
+			if (tempa == 0)
+			{
+				oled_Draw_Line(tempxo, tempyo-tempb, tempxo, tempyo+tempb, line_width_slim);
+				return 0;
+			}
+
+			if (tempb == 0)
+			{
+				oled_Draw_Line(tempxo-tempa, tempyo, tempxo+tempa, tempyo, line_width_slim);
+				return 0;
+			}
+
+			for (float deg = 0; deg < 360; deg +=1) {
+				float rad = deg * acosf(0) * (1/90.0f);
+				tempx = tempa * cosf(rad) + tempxo;
+				tempy = tempb * sinf(rad) + tempyo;
+
+				oled_Draw_Pixel((uint8_t)(tempx + 0.5), (uint8_t)(tempy + 0.5), pixel_control_ON);
+			}
+
+			tempa = tempa - 1;	tempb = tempb - 1;
+
+		} while (1);
+
+
+	}
+
+
+	return 0;
+}
+
+
+
+
+
+
+
+// ---------------- character ------------------
 
 /**
  * @brief	Display the character at the given (x,y) point
@@ -1166,8 +1826,163 @@ uint8_t oled_Draw_Character(uint8_t px, uint8_t py, unsigned char ch, oledFont_t
 
 
 
+/**
+ * @brief	Draw String
+ * @param	x:[in] start position x value
+ * @param	y:[in] start position y value
+ * @param	*pStr:[in] char array pointer
+ * @param	strLen:[in] char array length
+ * @param	oledFont:[in] indicate used font format
+ * @retval	0:ok	1:error
+ */
+uint8_t oled_Draw_String(uint8_t x, uint8_t y, const unsigned char *pStr, uint8_t strLen, oledFont_t oledFont)
+{
+	uint8_t cur_x = x, cur_y = y;
+	uint8_t font_width = oledFont.font_Width;
+	uint8_t font_height= oledFont.font_Height;
+	uint8_t str_len = strLen-1;
+
+	if (strLen ==0 || pStr == NULL)
+		return 1;
+
+	if (x > oled_H_Pix-1 || y > oled_V_Pix-1)
+		return 1;
+
+	for (uint8_t var = 0; var < str_len; ++var) {
+		if ( (oled_H_Pix - cur_x) < font_width ) {
+			cur_x = 0;
+			cur_y += font_height;
+			if ((cur_y + font_height) > (oled_V_Pix))
+				cur_y = 0;
+		}
+
+		if ( (oled_V_Pix - cur_y) < font_height ) {
+			cur_y = 0;
+			cur_x = 0;
+		}
+
+		oled_Draw_Character(cur_x, cur_y, *(pStr + var), oledFont);
+		cur_x += font_width;
+	}
+
+	return 0;
+}
 
 
+
+/**
+ * @brief	Draw Chinese String		height is nx8
+ * @param	x:[in] start position x value
+ * @param	y:[in] start position y value
+ * @param	chineseChar:[in] indicate used chinese string array info
+ * @param	idx:[in] arrary number(index) [<- frome oled_font.c chinese_t]
+ * @param	chr_num: [in] number of Chinese characters
+ * @retval	0:ok	1:error
+ */
+uint8_t oled_Draw_Chinese_String(uint8_t x, uint8_t y, chinese_t chineseStr, uint8_t idx, uint8_t chr_num )
+{
+	if (x > oled_H_Pix-1 || y > oled_V_Pix-1 || chineseStr.array == NULL || chr_num == 0)
+		return 1;
+
+	uint8_t cur_x = x, 	cur_y = y;
+	uint8_t chr_width  = chineseStr.Width;
+	uint8_t chr_height = chineseStr.Height;
+
+	uint16_t tempLen = chr_num * chineseStr.Width * chineseStr.Height / 8;
+	uint8_t ptrStr[tempLen];
+	uint32_t addr_offset = (chineseStr.Width==16)? (chinese_16x16_strint_MaxLen) : (chinese_24x24_strint_MaxLen);
+	memcpy(ptrStr, (uint8_t *)(chineseStr.array +idx*addr_offset), chr_num * chineseStr.Width * chineseStr.Height / 8);
+
+
+	uint8_t str_len	   = chr_num;
+
+	uint8_t i, startPx = cur_x, startPy = cur_y;
+
+	uint8_t var = 0;
+	for (var = 0; var < str_len; ++var) {
+
+		// draw one char *******************************************************************
+
+//		for (uint8_t idx = 0; idx < str_len; idx++)
+//		{
+			for (i = 0; i < (chr_height / 8); i++)	// scan font char height pixel -> n Byte  rows(page)
+			{
+				cur_x = startPx + var*chr_width;
+
+				// process a single character
+				for (uint8_t j = 0; j < chr_width; j++)	// scan font char height pixel
+				{
+					cur_y = startPy + i * 8;
+
+					for (uint8_t k = 0; k < 8; k++)	// Split each pixel data
+					{
+						if (((ptrStr[var * chr_height * chr_width / 8 + i * chr_width + j]) & (0x01 << k)) == (0x01 << k))
+						{
+							oled_Draw_Pixel(cur_x, cur_y++, pixel_control_ON);
+						}
+						else {
+							oled_Draw_Pixel(cur_x, cur_y++, pixel_control_OFF);
+						}
+					}
+					// next column
+					cur_x++;
+				}
+			}
+//		}
+
+
+		// draw one char end ***************************************************************
+
+//		cur_x += chr_width;
+	}
+
+	return 0;
+}
+
+
+/**
+ * @brief	Draw Bit_Map	128x64 size
+ * @param	bitMap:[in] indicate used bitMap array info
+ * @param	idx:[in] arrary number(index) [<- frome oled_font.c BitMap_t]
+ * @retval	0:ok	1:error
+ */
+uint8_t oled_Draw_BitMap(bitMap_t bitMap, uint8_t idx)
+{
+//	if (x > (oled_H_Pix-1) || y > (oled_V_Pix))
+//		return 1;
+//	if (oled_H_Pix-x < bitMap.Width || oled_V_Pix < bitMap.Height)
+//		return 1;
+
+	uint8_t cur_x = 0, cur_y = 0;
+	uint8_t tempy = 0;
+
+	uint8_t ptrStr[bitmap_128x64_MaxLen];
+	uint32_t addr_offset = bitmap_128x64_MaxLen;
+	memcpy(ptrStr, (uint8_t *)(bitMap.array +idx*addr_offset), addr_offset);
+
+
+	for (uint8_t i = 0; i < bitMap.Height/8; i++)	// page rows
+	{
+		cur_x = 0;
+		for (uint8_t j = 0; j < bitMap.Width; j++)	// column
+		{
+
+			for (uint8_t k = 0; k < 8; k++)	// Split each pixel data
+			{
+				if (((ptrStr[i * bitMap.Width + j]) & (0x01 << k)) == (0x01 << k))
+				{
+					oled_Draw_Pixel(cur_x, cur_y++, pixel_control_ON);
+				}
+				else {
+					oled_Draw_Pixel(cur_x, cur_y++, pixel_control_OFF);
+				}
+			}
+			cur_y = tempy;
+			cur_x++;
+		}
+		tempy += 8;
+	}
+}
 
 
 

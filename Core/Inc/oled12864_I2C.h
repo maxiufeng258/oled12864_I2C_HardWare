@@ -285,14 +285,47 @@ typedef enum {
 }line_width_TypeDef;
 typedef	line_width_TypeDef	line_width_t;
 
+/* graphic fill effect */
+typedef enum {
+	graphic_fill_solid	=	0,	// solid  effect
+	graphic_fill_hollow	=	1,	// hollow effect
+}graphic_fill_effect_TypeDef;
+typedef graphic_fill_effect_TypeDef	graphic_fill_effect_t;
+
 
 uint8_t oled_i2c_Init(void);
 uint8_t oled_Update_Screen(void);
 uint8_t oled_Fill_Screen_Color(oled_color_t	oled_color);
 
 uint8_t oled_Draw_Pixel(uint8_t px, uint8_t py, pixel_control_t pixel_control);
+uint8_t oled_Draw_Line(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, line_width_t line_width);
+uint8_t oled_Draw_rectangle (
+		uint8_t x0, uint8_t y0,
+		uint8_t x1, uint8_t y1,
+		line_width_t line_width,
+		graphic_fill_effect_t praphic_fill_effect);
+uint8_t	oled_Draw_Circular_Arc (
+		uint8_t cxo, uint8_t cyo,
+		uint8_t radius,
+		float startAngle, float endAngle,
+		line_width_t line_width);
+uint8_t oled_Draw_Ellipse (
+		uint8_t cxo, uint8_t cyo,
+		uint8_t a_x, uint8_t b_y,
+		line_width_t line_width,
+		graphic_fill_effect_t graphic_fill_effect);
+uint8_t oled_Draw_Round_Rectangle(
+		uint8_t x0, uint8_t y0,
+		uint8_t x1, uint8_t y1,
+		uint8_t radius,
+		line_width_t line_width);
+
+
+
 uint8_t oled_Draw_Character(uint8_t px, uint8_t py, unsigned char ch, oledFont_t fontX);
+uint8_t oled_Draw_String(uint8_t x, uint8_t y, const unsigned char *pStr, uint8_t strLen, oledFont_t oledFont);
+uint8_t oled_Draw_Chinese_String(uint8_t x, uint8_t y, chinese_t chineseStr, uint8_t idx, uint8_t chr_num );
 
-
+uint8_t oled_Draw_BitMap(bitMap_t bitMap, uint8_t idx);
 
 #endif /* INC_OLED12864_I2C_H_ */
